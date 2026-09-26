@@ -14,6 +14,7 @@
             <a href="../languages/">Языки</a>
             <a href="../symbols/">Символы</a>
             <a href="../schemes/">Схемы</a>
+            <a href="../bash/">Bash</a>
             <a href="../search/" class="is-active">Поиск</a>
             <a href="../suggest/">Предложка</a>
         </nav>
@@ -21,10 +22,10 @@
 
     <main class="page">
         <h1 class="page__title">Поиск</h1>
-        <p class="page__subtitle">Ищите сразу по языкам, терминологии, символам и схемам.</p>
+        <p class="page__subtitle">Ищите сразу по языкам, терминологии, символам, схемам и Bash-командам.</p>
 
         <div class="terms-search">
-            <input id="q" type="text" placeholder="Что искать? Например: print, сортировка, ООП…" autocomplete="off" autofocus>
+            <input id="q" type="text" placeholder="Что искать? Например: print, сортировка, ls, ООП…" autocomplete="off" autofocus>
         </div>
 
         <div id="status" class="search-status"></div>
@@ -66,6 +67,7 @@
 
             tasks.push(loadSymbols());
             tasks.push(loadSchemes());
+            tasks.push(loadBash());
 
             await Promise.all(tasks);
 
@@ -177,6 +179,30 @@
             }
         }
 
+        /* ---- Bash-команды ---- */
+        async function loadBash() {
+            const preview = await fetchJson('../data/bash/preview.json');
+            if (!preview || !Array.isArray(preview.commands)) return;
+
+            const levels = (preview.levels || []).reduce((acc, l) => {
+                acc[l.id] = l.name;
+                return acc;
+            }, {});
+
+            for (const cmd of preview.commands) {
+                INDEX.push({
+                    type:    'Bash',
+                    section: `${levels[cmd.level] || cmd.level} · ${cmd.category}`,
+                    title:   cmd.name,
+                    desc:    cmd.short,
+                    detail:  '',
+                    url:     '../bash/index.html',
+                    params:  { id: cmd.id, level: cmd.level },
+                    index:   INDEX_COUNTER++
+                });
+            }
+        }
+
         /* =========================================================
            ПОИСК
            ========================================================= */
@@ -237,9 +263,19 @@
                     <div class="table">
                         ${list.map(item => {
                             const sep  = item.url.includes('?') ? '&' : '?';
-                            const href = item.url
-                                + sep + 'hl='  + encodeURIComponent(item.title)
-                                + '&idx=' + item.index;
+
+                            let href;
+                            if (item.params) {
+                                const extra = new URLSearchParams(item.params).toString();
+                                href = item.url + sep + extra
+                                     + '&hl='  + encodeURIComponent(item.title)
+                                     + '&idx=' + item.index;
+                            } else {
+                                href = item.url
+                                     + sep + 'hl='  + encodeURIComponent(item.title)
+                                     + '&idx=' + item.index;
+                            }
+
                             return `
                                 <a class="row search-row" href="${href}">
                                     <div class="row__summary">
