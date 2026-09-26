@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bash — KK ArsDev</title>
+    <link rel="stylesheet" href="../global.css">
+</head>
+<body>
+
+    <header class="nav">
+        <div class="nav__logo">KK ArsDev<span>_</span></div>
+        <nav class="nav__menu">
+            <a href="../languages/">Языки</a>
+            <a href="../symbols/">Символы</a>
+            <a href="../schemes/">Схемы</a>
+            <a href="../bash/" class="active">Bash</a>
+            <a href="../search/">Поиск</a>
+            <a href="../suggest/">Предложка</a>
+        </nav>
+    </header>
+
+    <main class="bash">
+        <div class="bash__head">
+            <h1 class="bash__title">Linux / Bash</h1>
+            <p class="bash__text">
+                База команд с модификаторами, примерами и объяснениями для новичков.
+                Выбери команду — увидишь подробное описание.
+            </p>
+            <input type="search" id="bashSearch" class="bash__search" placeholder="Поиск команды…">
+        </div>
+
+        <div id="bashList" class="bash__list">
+            <p class="bash__loading">Загрузка…</p>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <p>© 2026 KKazilaev_ · <a href="https://github.com/kkazilaev/pomoshkkazilaev" target="_blank" rel="noopener">GitHub</a></p>
+    </footer>
+
+    <script>
+        /* =========================================================
+           ЗАГРУЗКА ДАННЫХ
+           ========================================================= */
+        const BASE = '../data/bash/';
+        let preview = null;              // лёгкий список
+        const levelCache = {};           // кеш уровней: { core: {...}, common: {...} }
+
+        async function loadPreview() {
+            const res = await fetch(BASE + 'preview.json');
+            preview = await res.json();
+            renderList(preview.commands);
+        }
+
+        async function loadLevel(levelId) {
+            if (levelCache[levelId]) return levelCache[levelId];
+
+            const level = preview.levels.find(l => l.id === levelId);
+            const res = await fetch(BASE + level.file);
+            const data = await res.json();
+            levelCache[levelId] = data;
+            return data;
+        }
+
+        /* =========================================================
+           ОТРИСОВКА СПИСКА
+           ========================================================= */
+        function renderList(commands) {
+            const box = document.getElementById('bashList');
+
+            if (!commands.length) {
+                box.innerHTML = '<p class="bash__loading">Ничего не найдено</p>';
+                return;
+            }
+
+            // Группируем по уровням
+            const byLevel = {};
+            commands.forEach(c => {
+                (byLevel[c.level] = byLevel[c.level] || []).push(c);
+            });
+
+            let html = '';
+
+            preview.levels.forEach(level => {
+                const list = byLevel[level.id];
+                if (!list || !list.length) return;
+
+                html += `<section class="bash__level">
+                    <h2 class="bash__level-title">${level.name}</h2>
+                    <div class="bash__grid">`;
+
+                list.forEach(c => {
+                    html += `<button class="bash__card" data-id="${c.id}" data-level="${c.level}">
+                        <span class="bash__card-name">${c.name}</span>
+                        <span class="bash__card-short">${c.short}</span>
+                        <span class="bash__card-cat">${c.category}</span>
+                    </button>`;
+                });
+
+                html += `</div></section>`;
+            });
+
+            box.innerHTML = html;
+
+            // Клик по карточке
+            box.querySelectorAll('.bash__card').forEach(btn => {
+                btn.addEventListener('click', () => openCommand(btn.dataset.id, btn.dataset.level));
+            });
+        }
+
+        /* =========================================================
+           ОТКРЫТИЕ КОМАНДЫ
+           ========================================================= */
+        async function openCommand(id, levelId) {
+            const level = await loadLevel(levelId);
+            const cmd = level[id];
+            const meta = preview.commands.find(c => c.id === id);
+
+            if (!cmd || !meta) return;
+
+            renderCommand(meta, cmd);
+        }
+
+        function renderCommand(meta, cmd) {
+            const box = document.getElementById('bashList');
+
+            let html = `<div class="cmd">
+                <button class="cmd__back" onclick="backToList()">← Назад</button>
+                <h2 class="cmd__title">${meta.name}</h2>
+                <p class="cmd__short">${meta.short}</p>
+
+                <div class="cmd__syntax"><code>${cmd.syntax}</code></div>
+                <p class="cmd__desc">${cmd.description}</p>`;
+
+            if (cmd.examples && cmd.examples.length) {
+                html += `<h3 class="cmd__h3">Примеры</h3><div class="cmd__examples">`;
+                cmd.examples.forEach(e => {
+                    html += `<div class="cmd__example">
+                        <code>${e.cmd}</code>
+                        <span>${e.desc}</span>
+                    </div>`;
+                });
+                html += `</div>`;
+            }
+
+            if (cmd.modifiers && cmd.modifiers.length) {
+                html += `<h3 class="cmd__h3">Модификаторы</h3><div class="cmd__mods">`;
+                cmd.modifiers.forEach(m => {
+                    html += `<div class="cmd__mod">
+                        <code>${m.flag}</code>
+                        <span>${m.desc}</span>
+                    </div>`;
+                });
+                html += `</div>`;
+            }
+
+            if (cmd.combine && cmd.combine.length) {
+                html += `<h3 class="cmd__h3">Комбинации</h3><div class="cmd__mods">`;
+                cmd.combine.forEach(m => {
+                    html += `<div class="cmd__mod">
+                        <code>${m.cmd}</code>
+                        <span>${m.desc}</span>
+                    </div>`;
+                });
+                html += `</div>`;
+            }
+
+            if (cmd.notes && cmd.notes.length) {
+                html += `<h3 class="cmd__h3">Заметки</h3><ul class="cmd__notes">`;
+                cmd.notes.forEach(n => html += `<li>${n}</li>`);
+                html += `</ul>`;
+            }
+
+            html += `</div>`;
+            box.innerHTML = html;
+            window.scrollTo(0, 0);
+        }
+
+        function backToList() {
+            renderList(preview.commands);
+        }
+
+        /* =========================================================
+           ПОИСК
+           ========================================================= */
+        document.getElementById('bashSearch').addEventListener('input', (e) => {
+            const q = e.target.value.trim().toLowerCase();
+            if (!q) return renderList(preview.commands);
+
+            const filtered = preview.commands.filter(c =>
+                c.name.toLowerCase().includes(q) ||
+                c.short.toLowerCase().includes(q) ||
+                c.category.toLowerCase().includes(q)
+            );
+            renderList(filtered);
+        });
+
+        /* =========================================================
+           СТАРТ
+           ========================================================= */
+        (async function start() {
+            await loadPreview();
+
+            const params = new URLSearchParams(location.search);
+            const id    = params.get('id');
+            const level = params.get('level');
+
+            if (id && level) {
+                const meta = preview.commands.find(c => c.id === id);
+                if (meta) {
+                    openCommand(id, level);
+                    return;
+                }
+            }
+        })();
+    </script>
+
+</body>
+</html>
